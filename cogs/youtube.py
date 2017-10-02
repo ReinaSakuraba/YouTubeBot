@@ -27,7 +27,7 @@ class Query(commands.Converter):
         try:
             limit = int(limit)
         except ValueError:
-            query = f'{limit} {view.read_rest()}'
+            query = f'{limit} {query}'
             limit = 1
 
         if not query:
