@@ -1,7 +1,10 @@
+import asyncio
 import pkg_resources
 
 import discord
 from discord.ext import commands
+
+from utils import subprocess
 
 
 class Info:
@@ -15,6 +18,7 @@ class Info:
     async def about(self, ctx):
         """Tells you information about the bot itself."""
 
+        recent_changes = await self.get_recent_changes(limit=3)
         owner = ctx.bot.owner
         version = pkg_resources.get_distribution('discord.py')
 
@@ -24,6 +28,7 @@ class Info:
         embed.add_field(name='Servers', value=len(ctx.bot.guilds), inline=False)
         embed.add_field(name='Memory Usage', value=ctx.bot.memory_usage)
         embed.add_field(name='CPU Usage', value=ctx.bot.cpu_usage)
+        embed.add_field(name='Recent Changes', value=recent_changes, inline=False)
         embed.set_footer(text=f'Made with {version}', icon_url='http://i.imgur.com/5BFecvA.png')
 
         await ctx.send(embed=embed)
@@ -50,6 +55,19 @@ class Info:
         """Posts the source code for the bot."""
 
         await ctx.send('https://github.com/ReinaSakuraba/YoutubeBot')
+
+    async def get_github_url(self):
+        result = await subprocess('git remote get-url origin')
+        return result[:-5]
+
+    async def get_recent_changes(self, *, limit=None):
+        url = await self.get_github_url()
+        cmd = f'git log --pretty=format:"[%s]({url}/commit/%H) (%cr)"'
+        if limit is not None:
+            cmd += f' -{limit}'
+
+        result = await subprocess(cmd)
+        return result
 
 
 def setup(bot):
