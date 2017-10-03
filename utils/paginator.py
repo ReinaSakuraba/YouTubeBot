@@ -13,8 +13,7 @@ class Paginator:
         self.entries = entries
         self.channel = ctx.channel
         self.author = ctx.author
-
-        self.paginating = len(entries) > 1
+        self.maximum_pages = len(entries)
 
         self.reaction_emojis = {
             '\N{BLACK LEFT-POINTING DOUBLE TRIANGLE WITH VERTICAL BAR}': self.first_page,
@@ -24,29 +23,60 @@ class Paginator:
             '\N{BLACK SQUARE FOR STOP}': self.stop_pages,
         }
 
-    async def show_entry(self, entry):
-        self.current_entry = entry
-        content = f'[{entry + 1}/{len(self.entries)}]\n{self.entries[entry]}'
-        await self.message.edit(content=content)
+        permissions = ctx.channel.permissions_for(ctx.me)
 
-    async def checked_show_entry(self, entry):
-        if entry >= 0 and entry <= len(self.entries) - 1:
-            await self.show_entry(entry)
+        if not permissions.embed_links:
+            raise CannotPaginate('Bot does not have Embed Links permission.')
+
+        if self.paginating:
+            if not permissions.add_reactions:
+                raise CannotPaginate('Bot does not have Add Reactions permission.')
+
+            if not permissions.read_message_history:
+                raise CannotPaginate('Bot does not have Read Message History permission.')
+
+    @property
+    def paginating(self):
+        return len(self.entries) > 1
+
+    async def show_page(self, page, *, first=False):
+        if not self.paginating:
+            return await self.channel.send(self.entries[0])
+
+        self.current_page = page
+
+        if not first:
+            content = f'[{page}/{self.maximum_pages}]\n{self.entries[page - 1]}'
+            return await self.message.edit(content=content)
+
+        content = f'[{page}/{self.maximum_pages}]\n{self.entries[0]}'
+        self.message = await self.channel.send(content)
+        await self.add_reactions()
+
+    async def add_reactions(self):
+        for reaction in self.reaction_emojis:
+            if self.maximum_pages == 2 and reaction in ('\u23ed', '\u23ee'):
+                continue
+
+            await self.message.add_reaction(reaction)
+
+    async def checked_show_page(self, page):
+        if 0 < page <= self.maximum_pages:
+            await self.show_page(page)
 
     async def next_page(self):
-        await self.checked_show_entry(self.current_entry + 1)
+        await self.checked_show_page(self.current_page + 1)
 
     async def previous_page(self):
-        await self.checked_show_entry(self.current_entry - 1)
+        await self.checked_show_page(self.current_page - 1)
 
     async def first_page(self):
-        await self.show_entry(0)
+        await self.show_page(1)
 
     async def last_page(self):
-        await self.show_entry(len(self.entries) - 1)
+        await self.show_page(self.maximum_pages)
 
     async def stop_pages(self):
-        self.paginating = False
         await self.message.clear_reactions()
 
     def check(self, reaction, user):
@@ -59,19 +89,17 @@ class Paginator:
         return reaction.emoji in self.reaction_emojis
 
     async def paginate(self):
-        if len(self.entries) == 1:
-            await self.channel.send(self.entries[0])
-            return
-        self.current_entry = 0
-        self.message = await self.channel.send(f'[{self.current_entry + 1}/{len(self.entries)}]\n{self.entries[0]}')
-        for emoji in self.reaction_emojis:
-            await self.message.add_reaction(emoji)
+        first_page = self.show_page(1, first=True)
+        if not self.paginating:
+            await first_page
+        else:
+            self.bot.loop.create_task(first_page)
 
         while self.paginating:
             try:
-                reaction, user = await self.bot.wait_for('reaction_add', check=self.check, timeout=120.0)
+                wait_for = self.bot.wait_for('reaction_add', check=self.check, timeout=120.0)
+                reaction, user = await wait_for
             except asyncio.TimeoutError:
-                self.paginating = False
                 try:
                     await self.message.clear_reactions()
                 finally:
@@ -84,3 +112,44 @@ class Paginator:
 
             func = self.reaction_emojis.get(reaction.emoji)
             await func()
+            if func is self.stop_pages:
+                break
+
+
+class EmbedPaginator(Paginator):
+    def __init__(self, ctx, *, entries, per_page=10):
+        self.per_page = per_page
+        super().__init__(ctx, entries=entries)
+
+        pages, left_over = divmod(len(entries), per_page)
+        if left_over:
+            pages += 1
+        self.maximum_pages = pages
+        self.embed = discord.Embed()
+
+    @property
+    def paginating(self):
+        return len(self.entries) > self.per_page
+
+    def get_page(self, page):
+        base = (page - 1) * self.per_page
+        return self.entries[base:base + self.per_page]
+
+    async def show_page(self, page, *, first=False):
+        self.current_page = page
+        entries = self.get_page(page)
+
+        if self.maximum_pages > 1:
+            text = f'Page {page}/{self.maximum_pages} ({len(self.entries)} entries)'
+            self.embed.set_footer(text=text)
+
+        self.embed.description = '\n'.join(entries)
+
+        if not self.paginating:
+            return await self.channel.send(embed=self.embed)
+
+        if not first:
+            return await self.message.edit(embed=self.embed)
+
+        self.message = await self.channel.send(embed=self.embed)
+        await self.add_reactions()
