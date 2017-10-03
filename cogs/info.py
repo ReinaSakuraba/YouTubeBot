@@ -1,4 +1,3 @@
-import asyncio
 import pkg_resources
 
 import discord
