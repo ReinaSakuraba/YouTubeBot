@@ -50,11 +50,11 @@ class Info:
         invite = discord.utils.oauth_url(app_info.id, permissions=permissions)
         await ctx.send(invite)
 
-    @commands.command()
+    @commands.command(aliases=['github'])
     async def source(self, ctx):
         """Posts the source code for the bot."""
 
-        await ctx.send('https://github.com/ReinaSakuraba/YoutubeBot')
+        await ctx.send(await self.get_github_url())
 
     async def get_github_url(self):
         result = await subprocess('git remote get-url origin')
