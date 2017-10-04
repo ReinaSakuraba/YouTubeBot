@@ -88,6 +88,12 @@ class YouTube:
 
         await self.show_entries(ctx, params)
 
+    @search.command(usage='[amount=1] <query>')
+    async def livestream(self, ctx, *, params: Query(type='video', eventType='live')):
+        """Searches YouTube for a livestream."""
+
+        await self.show_entries(ctx, params)
+
     @commands.command(aliases=['pldump'])
     async def dump(self, ctx, link: str):
         """Gets all the URLs from a YouTube playlist."""
