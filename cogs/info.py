@@ -3,7 +3,7 @@ import pkg_resources
 import discord
 from discord.ext import commands
 
-from utils import subprocess
+from utils import subprocess, EmbedPaginator
 
 
 class Info:
@@ -31,6 +31,21 @@ class Info:
         embed.set_footer(text=f'Made with {version}', icon_url='http://i.imgur.com/5BFecvA.png')
 
         await ctx.send(embed=embed)
+
+    @commands.command()
+    async def changelog(self, ctx):
+        """Shows recent changes made to the bot."""
+
+        changes = await self.get_recent_changes()
+        changes = changes.split('\n')
+
+        try:
+            paginator = EmbedPaginator(ctx, entries=changes)
+            paginator.embed.title = 'Change Log'
+            paginator.embed.color = 0xFF0000
+            await paginator.paginate()
+        except Exception as e:
+            await ctx.send(e)
 
     @commands.command()
     async def invite(self, ctx):
