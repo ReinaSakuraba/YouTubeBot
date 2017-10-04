@@ -1,3 +1,6 @@
+import io
+import re
+
 import discord
 from discord.ext import commands
 
@@ -8,6 +11,8 @@ YOUTUBE_BASE = 'https://www.youtube.com/'
 VIDEO_BASE = YOUTUBE_BASE + 'watch?v='
 CHANNEL_BASE = YOUTUBE_BASE + 'channel/'
 PLAYLIST_BASE = YOUTUBE_BASE + 'playlist?list='
+
+PLAYLIST_REGEX = re.compile(r'https?://www.youtube.com/.*?list=([a-zA-Z0-9-_]+).*')
 
 
 class Query(commands.Converter):
@@ -82,6 +87,39 @@ class YouTube:
         """Searches YouTube for a playlist."""
 
         await self.show_entries(ctx, params)
+
+    @commands.command(aliases=['pldump'])
+    async def dump(self, ctx, link: str):
+        """Gets all the URLs from a YouTube playlist."""
+
+        match = PLAYLIST_REGEX.match(link)
+        if match is None:
+            return await ctx.send('This is not a valid link.')
+
+        playlist_id = match.group(1)
+        videos = []
+
+        params = {
+            'part': 'contentDetails',
+            'playlistId': playlist_id
+        }
+        while True:
+            data = await self.request(ctx, 'playlistItems', params)
+            if data is None:
+                return await ctx.send('This is not a valid playlist.')
+
+            items = data['items']
+            for entry in items:
+                videos.append(VIDEO_BASE + entry['contentDetails']['videoId'])
+
+            page_token = data.get('nextPageToken')
+            if not page_token:
+                break
+
+            params['pageToken'] = page_token
+
+        file = io.BytesIO('\r\n'.join(videos).encode('utf8'))
+        await ctx.send(file=discord.File(file, 'playlist.txt'))
 
     async def show_entries(self, ctx, params):
         data = await self.request(ctx, 'search', params)
