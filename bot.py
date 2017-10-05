@@ -25,6 +25,7 @@ class Bot(commands.Bot):
         self.all_commands = CaseInsensitiveDict(self.all_commands)
 
         self.youtube_key = config.youtube_key
+        self.feedback_channel = config.feedback_channel
         self.session = aiohttp.ClientSession(loop=self.loop)
         self.process = psutil.Process()
 
