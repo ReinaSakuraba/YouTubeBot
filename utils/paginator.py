@@ -20,6 +20,7 @@ class Paginator:
             '\N{BLACK LEFT-POINTING TRIANGLE}': self.previous_page,
             '\N{BLACK RIGHT-POINTING TRIANGLE}': self.next_page,
             '\N{BLACK RIGHT-POINTING DOUBLE TRIANGLE WITH VERTICAL BAR}': self.last_page,
+            '\N{INPUT SYMBOL FOR NUMBERS}': self.numbered_page,
             '\N{BLACK SQUARE FOR STOP}': self.stop_pages,
         }
 
@@ -75,6 +76,31 @@ class Paginator:
 
     async def last_page(self):
         await self.show_page(self.maximum_pages)
+
+    async def numbered_page(self):
+        to_delete = [await self.channel.send('What page do you want to go to?')]
+
+        def check(m):
+            return m.author == self.author and self.channel == m.channel and \
+                   m.content.isdigit()
+
+        try:
+            msg = await self.bot.wait_for('message', check=check, timeout=30.0)
+        except asyncio.TimeoutError:
+            to_delete.append(await self.channel.send('Took too long.'))
+        else:
+            page = int(msg.content)
+            to_delete.append(msg)
+            if page != 0 and page <= self.maximum_pages:
+                await self.show_page(page)
+            else:
+                to_delete.append(await self.channel.send(f'Invalid page given. ({page}/{self.maximum_pages})'))
+        await asyncio.sleep(5)
+
+        try:
+            await self.channel.delete_messages(to_delete)
+        except Exception:
+            pass
 
     async def stop_pages(self):
         await self.message.clear_reactions()
