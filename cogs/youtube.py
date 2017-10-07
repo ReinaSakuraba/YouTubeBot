@@ -39,8 +39,8 @@ class Query(commands.Converter):
             query = str(limit)
             limit = 1
 
-        if limit > 50 or 0 > limit:
-            raise commands.BadArgument('Search limit must be between 0 and 50.')
+        if limit <= 0:
+            raise commands.BadArgument('Search limit must be greater than 0.')
 
         return query, limit
 
@@ -107,40 +107,54 @@ class YouTube:
 
         params = {
             'part': 'contentDetails',
-            'playlistId': playlist_id,
-            'maxResults': 50
+            'playlistId': playlist_id
         }
+        entries = await self.get_entries(ctx, 'playlistItems', params, all_entries=True)
+        if entries is None:
+            return await ctx.send('This is not a valid playlist.')
+
+        links = [VIDEO_BASE + entry['contentDetails']['videoId'] for entry in entries]
+
+        file = io.BytesIO('\r\n'.join(links).encode('utf8'))
+        await ctx.send(file=discord.File(file, 'playlist.txt'))
+
+    async def get_entries(self, ctx, search_type, params, *, all_entries=False):
+        entries = []
+        limit = params.get('maxResults')
+
         while True:
-            data = await self.request(ctx, 'playlistItems', params)
+            if all_entries:
+                params['maxResults'] = 50
+            else:
+                params['maxResults'] = min(50, limit)
+                limit = max(0, limit - 50)
+
+            data = await self.request(ctx, search_type, params)
             if data is None:
-                return await ctx.send('This is not a valid playlist.')
+                return entries
 
             items = data['items']
-            for entry in items:
-                videos.append(VIDEO_BASE + entry['contentDetails']['videoId'])
+            entries.extend(items)
 
             page_token = data.get('nextPageToken')
-            if not page_token:
-                break
+
+            if page_token is None or limit == 0:
+                return entries
 
             params['pageToken'] = page_token
 
-        file = io.BytesIO('\r\n'.join(videos).encode('utf8'))
-        await ctx.send(file=discord.File(file, 'playlist.txt'))
-
     async def show_entries(self, ctx, params):
-        data = await self.request(ctx, 'search', params)
+        entries = await self.get_entries(ctx, 'search', params)
 
-        items = data['items']
         search_type = params['type']
-        if not items:
+        if not entries:
             return await ctx.send(f'No {search_type}s found.')
 
         base = globals().get(f'{search_type.upper()}_BASE')
-        entries = [base + entry['id'][f'{search_type}Id'] for entry in items]
+        links = [base + entry['id'][f'{search_type}Id'] for entry in entries]
 
         try:
-            paginator = Paginator(ctx, entries=entries)
+            paginator = Paginator(ctx, entries=links)
             await paginator.paginate()
         except Exception as e:
             await ctx.send(e)
