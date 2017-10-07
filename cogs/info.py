@@ -90,7 +90,7 @@ class Info:
         Used to request features or bug fixes.
         """
 
-        channel = ctx.bot.get_channel(ctx.bot.feedback_channel)
+        channel = ctx.bot.feedback_channel
         if channel is None:
             return
 

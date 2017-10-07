@@ -25,7 +25,6 @@ class Bot(commands.Bot):
         self.all_commands = CaseInsensitiveDict(self.all_commands)
 
         self.youtube_key = config.youtube_key
-        self.feedback_channel = config.feedback_channel
         self.session = aiohttp.ClientSession(loop=self.loop)
         self.process = psutil.Process()
 
@@ -45,6 +44,8 @@ class Bot(commands.Bot):
 
         app_info = await self.application_info()
         self.owner_id = app_info.owner.id
+
+        self.feedback_channel = self.get_channel(config.feedback_channel)
 
     @property
     def owner(self):
