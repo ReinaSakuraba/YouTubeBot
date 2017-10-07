@@ -107,7 +107,8 @@ class YouTube:
 
         params = {
             'part': 'contentDetails',
-            'playlistId': playlist_id
+            'playlistId': playlist_id,
+            'maxResults': 50
         }
         while True:
             data = await self.request(ctx, 'playlistItems', params)
