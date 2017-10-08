@@ -103,14 +103,13 @@ class YouTube:
             return await ctx.send('This is not a valid link.')
 
         playlist_id = match.group(1)
-        videos = []
 
         params = {
             'part': 'contentDetails',
             'playlistId': playlist_id
         }
         entries = await self.get_entries(ctx, 'playlistItems', params, all_entries=True)
-        if entries is None:
+        if not entries:
             return await ctx.send('This is not a valid playlist.')
 
         links = [VIDEO_BASE + entry['contentDetails']['videoId'] for entry in entries]
