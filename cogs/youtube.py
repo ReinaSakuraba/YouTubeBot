@@ -3,6 +3,7 @@ import re
 
 import discord
 from discord.ext import commands
+import dateutil.parser
 
 from utils import Paginator, group
 
@@ -12,7 +13,9 @@ VIDEO_BASE = YOUTUBE_BASE + 'watch?v='
 CHANNEL_BASE = YOUTUBE_BASE + 'channel/'
 PLAYLIST_BASE = YOUTUBE_BASE + 'playlist?list='
 
-PLAYLIST_REGEX = re.compile(r'https?://www.youtube.com/.*?list=([a-zA-Z0-9-_]+).*')
+VIDEO_REGEX = re.compile(r'https?://(?:www\.youtube\.com/watch\?.*v=|youtu\.be/)(?P<video_id>[\w-]+)')
+CHANNEL_REGEX = re.compile(r'https?://www\.youtube\.com/(?:channel/(?P<channel_id>[\w-]+)|user/(?P<username>[\w-]+))')
+PLAYLIST_REGEX = re.compile(r'https?://(?:www\.youtube\.com/(?:watch|playlist)\?|youtu\.be/).*list=(?P<playlist_id>[\w-]+)')
 
 
 class Query(commands.Converter):
@@ -57,8 +60,7 @@ class Query(commands.Converter):
 
 class YouTube:
     async def __error(self, ctx, exception):
-        if isinstance(exception, commands.BadArgument):
-            await ctx.send(exception)
+        await ctx.send(exception)
 
     async def request(self, ctx, route, params):
         params['key'] = ctx.bot.youtube_key
@@ -93,6 +95,132 @@ class YouTube:
         """Searches YouTube for a livestream."""
 
         await self.show_entries(ctx, params)
+
+    @group(invoke_without_command=True)
+    async def info(self, ctx, link: str):
+        """Gets info from your YouTube link.
+        
+        If you don't pass in a subcommand, this will
+        get info for a video.
+        """
+
+        match = VIDEO_REGEX.match(link)
+        if match is None:
+            return await ctx.send('This is not a valid link.')
+
+        video_id = match.group('video_id')
+
+        params = {
+        	    'id': video_id,
+        	    'part': 'snippet,statistics',
+        	}
+
+        data = await self.request(ctx, 'videos', params)
+
+        items = data['items']
+        if not items:
+            return await ctx.send('This is not a valid channel.')
+
+        info = items[0]
+        snippet = info['snippet']
+        statistics = info['statistics']
+
+        created_at = dateutil.parser.parse(snippet['publishedAt'])
+        icon = snippet['thumbnails']['default']['url']
+        url = VIDEO_BASE + info['id']
+        description = snippet['description']
+        stats = '\n'.join(f'{k[:-5].title()}s: {v}' for k, v in statistics.items())
+
+        embed = discord.Embed(title=snippet['title'], timestamp=created_at, color=0xFF0000, url=url)
+        if description:
+            embed.description = description
+
+        embed.add_field(name='Stats', value=stats)
+        embed.add_field(name='Uploader', value=snippet['channelTitle'])
+        embed.set_thumbnail(url=icon)
+        embed.set_footer(text='Created')
+
+        await ctx.send(embed=embed)
+
+    @info.command(name='channel')
+    async def info_channel(self, ctx, link: str):
+        """Gets info about a channel."""
+
+        match = CHANNEL_REGEX.match(link)
+        if match is None:
+            return await ctx.send('This is not a valid link.')
+
+        channel_id = match.group('channel_id')
+        username = match.group('username')
+
+        params = {'id': channel_id} if channel_id else {'forUsername': username}
+        params['part'] = 'snippet,statistics'
+
+
+        data = await self.request(ctx, 'channels', params)
+
+        items = data['items']
+        if not items:
+            return await ctx.send('This is not a valid channel.')
+
+        info = items[0]
+        snippet = info['snippet']
+        statistics = info['statistics']
+
+        created_at = dateutil.parser.parse(snippet['publishedAt'])
+        icon = snippet['thumbnails']['high']['url']
+        url = CHANNEL_BASE + info['id']
+        description = snippet['description']
+
+        embed = discord.Embed(timestamp=created_at, color=0xFF0000)
+        if description:
+            embed.description = description
+
+        embed.set_author(name=snippet['title'], icon_url=icon, url=url)
+        embed.add_field(name='Subscribers', value=statistics['subscriberCount'])
+        embed.add_field(name='Videos', value=statistics['videoCount'])
+        embed.add_field(name='Total Views', value=statistics['viewCount'])
+        embed.set_footer(text='Created')
+
+        await ctx.send(embed=embed)
+
+    @info.command(name='playlist')
+    async def info_playlist(self, ctx, link: str):
+        """Gets info about a playlist."""
+
+        match = PLAYLIST_REGEX.match(link)
+        if match is None:
+            return await ctx.send('This is not a valid link.')
+
+        playlist_id = match.group('playlist_id')
+
+        params = {
+            'part': 'snippet,contentDetails',
+            'id': playlist_id,
+        }
+        data = await self.request(ctx, 'playlists', params)
+
+        items = data['items']
+        if not items:
+            return await ctx.send('This is not a valid playlist.')
+
+        info = items[0]
+        snippet = info['snippet']
+        details = info['contentDetails']
+
+        url = PLAYLIST_BASE + info['id']
+        created_at = dateutil.parser.parse(snippet['publishedAt'])
+        description = snippet['description']
+
+        embed = discord.Embed(title=snippet['title'], timestamp=created_at, color=0xFF0000, url=url)
+        if description:
+            embed.description = description
+        embed.set_thumbnail(url=snippet['thumbnails']['default']['url'])
+        embed.add_field(name='Videos', value=details['itemCount'])
+        embed.add_field(name='Created By', value=snippet['channelTitle'])
+        embed.set_footer(text='Created')
+
+        await ctx.send(embed=embed)
 
     @commands.command(aliases=['pldump'])
     async def dump(self, ctx, link: str):
