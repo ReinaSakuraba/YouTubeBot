@@ -60,7 +60,8 @@ class Query(commands.Converter):
 
 class YouTube:
     async def __error(self, ctx, exception):
-        await ctx.send(exception)
+        if isinstance(exception, commands.BadArgument):
+            await ctx.send(exception)
 
     async def request(self, ctx, route, params):
         params['key'] = ctx.bot.youtube_key
