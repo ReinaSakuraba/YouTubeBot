@@ -11,6 +11,10 @@ import config
 from utils import human_time, CaseInsensitiveDict
 
 
+def _check(ctx):
+    return not ctx.author.bot
+
+
 class Context(commands.Context):
     @property
     def session(self):
@@ -23,6 +27,7 @@ class Bot(commands.Bot):
                          pm_help=None, game=discord.Game(name='yt help'))
 
         self.all_commands = CaseInsensitiveDict(self.all_commands)
+        self.add_check(_check)
 
         self.youtube_key = config.youtube_key
         self.session = aiohttp.ClientSession(loop=self.loop)
