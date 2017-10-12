@@ -14,3 +14,4 @@
 * Python 3.6+
 * discord.py rewrite branch
 * psutil
+* python_dateutil
