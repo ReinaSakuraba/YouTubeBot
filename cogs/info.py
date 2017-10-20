@@ -1,9 +1,20 @@
+import os
+import inspect
 import pkg_resources
 
 import discord
 from discord.ext import commands
 
 from utils import subprocess, EmbedPaginator
+
+
+class CommandConverter(commands.Converter):
+    async def convert(self, ctx, argument):
+        obj = ctx.bot.get_cog(argument) or ctx.bot.get_command(argument)
+        if obj is None:
+            raise commands.BadArgument(f'No command called "{argument}" found.')
+
+        return obj
 
 
 class Info:
@@ -65,10 +76,29 @@ class Info:
         await ctx.send(invite)
 
     @commands.command(aliases=['github'])
-    async def source(self, ctx):
+    async def source(self, ctx, *, command: CommandConverter = None):
         """Posts the source code for the bot."""
 
-        await ctx.send(await self.get_github_url())
+        source_url = await self.get_github_url()
+
+        if command is None:
+            return await ctx.send(source_url)
+
+        src = getattr(command, 'callback', command.__class__)
+
+        lines, first_line = inspect.getsourcelines(src)
+        last_line = first_line + len(lines) - 1
+        module =src.__module__
+        if not module.startswith('discord'):
+            location = os.path.relpath(inspect.getfile(src))
+            branch = (await subprocess('git rev-parse HEAD')).strip()
+        else:
+            location = f'{module.replace(".", "/")}.py'
+            source_url = 'https://github.com/Rapptz/discord.py'
+            branch = 'rewrite'
+
+        final_url = f'{source_url}/blob/{branch}/{location}#L{first_line}-L{last_line}'
+        await ctx.send(final_url)
 
     async def get_github_url(self):
         result = await subprocess('git remote get-url origin')
