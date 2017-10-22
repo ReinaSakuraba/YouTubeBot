@@ -5,7 +5,7 @@ import pkg_resources
 import discord
 from discord.ext import commands
 
-from utils import subprocess, EmbedPaginator
+from utils import run_subprocess, EmbedPaginator
 
 
 class CommandConverter(commands.Converter):
@@ -28,7 +28,7 @@ class Info:
     async def about(self, ctx):
         """Tells you information about the bot itself."""
 
-        recent_changes = await self.get_recent_changes(limit=3)
+        recent_changes, _ = await self.get_recent_changes(limit=3)
         owner = ctx.bot.owner
         version = pkg_resources.get_distribution('discord.py')
 
@@ -47,11 +47,10 @@ class Info:
     async def changelog(self, ctx):
         """Shows recent changes made to the bot."""
 
-        changes = await self.get_recent_changes()
-        changes = changes.split('\n')
+        changes, _ = await self.get_recent_changes()
 
         try:
-            paginator = EmbedPaginator(ctx, entries=changes)
+            paginator = EmbedPaginator(ctx, entries=changes.split('\n'))
             paginator.embed.title = 'Change Log'
             paginator.embed.color = 0xFF0000
             await paginator.paginate()
@@ -91,7 +90,8 @@ class Info:
         module =src.__module__
         if not module.startswith('discord'):
             location = os.path.relpath(inspect.getfile(src))
-            branch = (await subprocess('git rev-parse HEAD')).strip()
+            branch, _ = await run_subprocess('git rev-parse HEAD')
+            branch = branch.strip()
         else:
             location = f'{module.replace(".", "/")}.py'
             source_url = 'https://github.com/Rapptz/discord.py'
@@ -101,8 +101,8 @@ class Info:
         await ctx.send(final_url)
 
     async def get_github_url(self):
-        result = await subprocess('git remote get-url origin')
-        return result[:-5]
+        result = await run_subprocess('git remote get-url origin')
+        return result[0].strip()[:-4]
 
     async def get_recent_changes(self, *, limit=None):
         url = await self.get_github_url()
@@ -110,7 +110,7 @@ class Info:
         if limit is not None:
             cmd += f' -{limit}'
 
-        result = await subprocess(cmd)
+        result = await run_subprocess(cmd)
         return result
 
     @commands.command()
