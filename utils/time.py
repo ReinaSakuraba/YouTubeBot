@@ -13,7 +13,7 @@ def human_time(seconds):
         'day': days,
         'hour': hours,
         'minute': minutes,
-        'second': seconds
+        'second': seconds,
     }
 
     def _plural(name, value):
@@ -24,5 +24,5 @@ def human_time(seconds):
     time = [_plural(key, value) for key, value in time_units.items() if value]
 
     if len(time) > 2:
-        return '{}, and {}'.format(', '.join(time[:-1]), time[-1])
+        return '{", ".join(time[:-1])}, and {time[-1]}'
     return ' and '.join(time)
