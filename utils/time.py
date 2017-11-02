@@ -1,28 +1,38 @@
+import datetime
+
+from dateutil.relativedelta import relativedelta
+
+
 def human_time(seconds):
     seconds = int(seconds)
     if seconds == 0:
         return '0 seconds'
 
-    hours, remainder = divmod(seconds, 3600)
-    minutes, seconds = divmod(remainder, 60)
-    days, hours = divmod(hours, 24)
-    years, days = divmod(days, 365)
+    is_negative = seconds < 0
 
-    time_units = {
-        'year': years,
-        'day': days,
-        'hour': hours,
-        'minute': minutes,
-        'second': seconds,
-    }
+    now = datetime.datetime.utcnow()
+    future = now + datetime.timedelta(seconds=abs(seconds))
+    delta = relativedelta(future, now)
 
-    def _plural(name, value):
-        if value != 1:
-            name += 's'
-        return f'{value} {name}'
+    weeks, days = divmod(delta.days, 7)
 
-    time = [_plural(key, value) for key, value in time_units.items() if value]
+    units = (
+        ('year', delta.years),
+        ('month', delta.months),
+        ('week', weeks),
+        ('day', days),
+        ('hour', delta.hours),
+        ('minute', delta.minutes),
+        ('second', delta.seconds)
+    )
+
+    time = [f'{value} {unit}{"s" * (value != 1)}' for unit, value in units if value]
 
     if len(time) > 2:
-        return f'{", ".join(time[:-1])}, and {time[-1]}'
-    return ' and '.join(time)
+        time = f'{", ".join(time[:-1])}, and {time[-1]}'
+    else:
+        time = ' and '.join(time)
+
+    if is_negative:
+        time += ' ago'
+    return time
